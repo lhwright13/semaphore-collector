@@ -1,7 +1,14 @@
-# Data collection only - this is all your friends need to run collector.py.
+# Everything needed to run collector.py (capture + hands-free voice cueing).
 # Python 3.10 is required: mediapipe has no working wheels for 3.13/3.14, where
 # pip silently installs a broken stub missing the `solutions` module.
 mediapipe==0.10.21
 opencv-python==4.10.0.84
 numpy==1.26.4
 pydantic==2.13.4
+
+# Voice control ("next" to save and advance). The offline speech model itself
+# (~40 MB) is downloaded on first run; certifi provides the CA bundle for that
+# download since macOS python.org builds ship without root certs.
+vosk>=0.3.44
+sounddevice>=0.4.6
+certifi>=2024.2.2

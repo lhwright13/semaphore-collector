@@ -46,6 +46,9 @@ source venv/bin/activate      # Windows: venv\Scripts\activate.bat
 python collector.py
 ```
 
+The first run downloads a small offline speech model (~40 MB) for voice control,
+and on macOS the terminal will ask for microphone permission.
+
 A camera window opens with a semaphore chart in the corner for reference. For
 each prompt shown ("hello", the letter "r", etc.):
 
@@ -53,6 +56,10 @@ each prompt shown ("hello", the letter "r", etc.):
 2. Sign the prompt, matching the chart. Hold the final position briefly.
 3. Press `e` to end. The last second is trimmed automatically.
 4. Press `s` to save, or `r` to reject and redo.
+
+**The fast way: just say "next".** It saves the current take, advances to the
+next prompt, and starts the next countdown automatically - a continuous
+hands-free loop (sign, "next", sign, "next"). All keyboard controls still work.
 
 It automatically moves to whichever prompt has the fewest recordings, so the data
 stays balanced. A few takes of each prompt, at slightly different speeds, is ideal.
@@ -72,20 +79,6 @@ stays balanced. A few takes of each prompt, at slightly different speeds, is ide
 
 Keep your hands inside the frame while signing - if they leave the view, the
 tracking guesses and the data is less useful.
-
-### Hands-free voice control (optional)
-
-To avoid reaching for the keyboard between every take, you can cue collection by
-voice. Install the extra dependencies once:
-
-```bash
-pip install -r requirements-voice.txt
-```
-
-The first run downloads a small offline speech model (~40 MB). After that, just
-say **"next"** to save the current take, advance to the next prompt, and start
-the next countdown automatically - a continuous loop. All keys still work too.
-(On macOS the terminal will ask for microphone permission the first time.)
 
 ## Sending your data back
 

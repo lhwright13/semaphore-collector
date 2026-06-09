@@ -85,7 +85,7 @@ class Collector:
     def _start_voice(self):
         from voice import VoiceListener
         if not VoiceListener.available():
-            print('Voice disabled (install requirements-voice.txt to say "next").')
+            print('Voice unavailable (reinstall with: pip install -r requirements.txt).')
             return
         self._voice = VoiceListener(["next"], self._on_voice)
         if self._voice.start():
