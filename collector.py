@@ -37,6 +37,10 @@ class Collector:
         self._export_requested = False
         self._export_msg = None          # (text, expires_at)
 
+        self._voice = None
+        self._voice_next_requested = False
+        self._last_voice_t = 0.0
+
     def _load_reference(self):
         img = cv2.imread(self.config.reference_image)
         if img is None:
@@ -47,6 +51,7 @@ class Collector:
     def run(self):
         print("Semaphore Collector")
         print("SPACE start | e end | s save | r reject | n skip prompt | h toggle chart | z export zip | q quit")
+        self._start_voice()
 
         cv2.namedWindow("Collector")
         cv2.setMouseCallback("Collector", self._on_mouse)
@@ -61,6 +66,9 @@ class Collector:
             landmarks = self.pose.process(frame, draw=True)
 
             self._handle_state(landmarks)
+            if self._voice_next_requested:
+                self._voice_next_requested = False
+                self._voice_next()
             if self._export_requested:
                 self._export_requested = False
                 self._export()
@@ -73,6 +81,42 @@ class Collector:
                 break
 
         self._cleanup()
+
+    def _start_voice(self):
+        from voice import VoiceListener
+        if not VoiceListener.available():
+            print('Voice disabled (install requirements-voice.txt to say "next").')
+            return
+        self._voice = VoiceListener(["next"], self._on_voice)
+        if self._voice.start():
+            print('Voice enabled: say "next" to save and advance.')
+        else:
+            self._voice = None
+
+    def _on_voice(self, word):
+        # Runs on the listener thread - just set a flag for the main loop.
+        if word == "next":
+            self._voice_next_requested = True
+
+    def _voice_next(self):
+        """Save the current take (if any), advance, and start the next countdown."""
+        if time.time() - self._last_voice_t < 1.5:   # debounce / ignore double-fires
+            return
+        self._last_voice_t = time.time()
+        if self.state == State.RECORDING:
+            self._finish_recording()
+            if self.state == State.REVIEW:
+                self._save_clip()
+            self._start_countdown()
+        elif self.state == State.REVIEW:
+            self._save_clip()
+            self._start_countdown()
+        elif self.state == State.WAITING:
+            self._start_countdown()
+
+    def _start_countdown(self):
+        self.state = State.COUNTDOWN
+        self.countdown_start = time.time()
 
     def _on_mouse(self, event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN and self.button_rect:
@@ -103,8 +147,7 @@ class Collector:
 
     def _handle_key(self, key: int):
         if key == ord(" ") and self.state == State.WAITING:
-            self.state = State.COUNTDOWN
-            self.countdown_start = time.time()
+            self._start_countdown()
         elif key == ord("e") and self.state == State.RECORDING:
             self._finish_recording()
         elif key == ord("s") and self.state == State.REVIEW:
@@ -203,7 +246,8 @@ class Collector:
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 100), 2)
 
         total = sum(self.counts.values())
-        cv2.putText(frame, f"Total clips: {total}  |  (n)ext  (h)ide ref  (q)uit", (10, h - 12),
+        voice = '  |  say "next"' if self._voice else ""
+        cv2.putText(frame, f"Total clips: {total}  |  (n)ext  (h)ide ref  (q)uit{voice}", (10, h - 12),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.55, (150, 150, 150), 1)
 
         self._draw_export_button(frame, w, h)
@@ -223,6 +267,8 @@ class Collector:
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (180, 255, 180), 1)
 
     def _cleanup(self):
+        if self._voice:
+            self._voice.stop()
         self.pose.close()
         self.cap.release()
         cv2.destroyAllWindows()

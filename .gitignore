@@ -15,6 +15,9 @@ data/
 checkpoints/
 prototypes.npz
 
+# Offline voice model (downloaded on first use)
+models/
+
 # Raw screenshots (the chart lives in semaphore_chart.png)
 Screenshot*.png
 

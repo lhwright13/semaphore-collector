@@ -73,6 +73,20 @@ stays balanced. A few takes of each prompt, at slightly different speeds, is ide
 Keep your hands inside the frame while signing - if they leave the view, the
 tracking guesses and the data is less useful.
 
+### Hands-free voice control (optional)
+
+To avoid reaching for the keyboard between every take, you can cue collection by
+voice. Install the extra dependencies once:
+
+```bash
+pip install -r requirements-voice.txt
+```
+
+The first run downloads a small offline speech model (~40 MB). After that, just
+say **"next"** to save the current take, advance to the next prompt, and start
+the next countdown automatically - a continuous loop. All keys still work too.
+(On macOS the terminal will ask for microphone permission the first time.)
+
 ## Sending your data back
 
 Click the green **Export ZIP** button (or press `z`). This writes a file named
