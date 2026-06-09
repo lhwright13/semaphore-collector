@@ -21,7 +21,7 @@ Clone the repo, then run the setup script for your system.
 macOS / Linux:
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/lhwright13/semaphore-collector.git
 cd semaphore-collector
 ./setup.sh
 ```
@@ -29,7 +29,7 @@ cd semaphore-collector
 Windows:
 
 ```bat
-git clone <repo-url>
+git clone https://github.com/lhwright13/semaphore-collector.git
 cd semaphore-collector
 setup.bat
 ```
