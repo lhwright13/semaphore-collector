@@ -1,0 +1,22 @@
+# Virtual environments
+venv/
+venv_web/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# Collected data (yours stays local; friends generate their own)
+data/
+*.zip
+
+# Training artifacts and personal calibration
+checkpoints/
+prototypes.npz
+
+# Raw screenshots (the chart lives in semaphore_chart.png)
+Screenshot*.png
+
+# OS
+.DS_Store

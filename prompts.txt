@@ -1,0 +1,66 @@
+# One phrase per line. Blank lines and # comments are ignored.
+# Type is auto-derived: single character = letter, has a space = sentence, otherwise word.
+
+# --- Single letters (atomic units for the character-level model) ---
+a
+b
+c
+d
+e
+f
+g
+h
+i
+j
+k
+l
+m
+n
+o
+p
+q
+r
+s
+t
+u
+v
+w
+x
+y
+z
+
+# --- Common words (diverse letter coverage, low redundancy) ---
+water
+help
+more
+stop
+food
+time
+name
+where
+what
+when
+work
+home
+good
+cold
+hurt
+safe
+here
+come
+wait
+done
+
+# --- Phrases and sentences (letters in transition - the cursive part) ---
+hello
+goodbye
+yes
+no
+please
+thank you
+how are you
+I need water
+call for help
+where is the exit
+the quick brown fox jumps over the lazy dog
+pack my box with five dozen liquor jugs

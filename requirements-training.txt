@@ -1,0 +1,5 @@
+# Full pipeline (synthetic generation, model, training). Only the maintainer
+# needs this - friends collecting data do not. Installs the collection deps plus
+# PyTorch (large). On Apple Silicon the standard wheel includes MPS.
+-r requirements.txt
+torch>=2.2

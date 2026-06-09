@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Synthetic Semaphore Data: How It Works</title>
+<style>
+  :root {
+    --bg: #0f1419; --panel: #1a212b; --ink: #e6edf3; --muted: #9fb0c0;
+    --accent: #ffc857; --accent2: #5bc0eb; --line: #2c3744; --good: #7ee787; --warn: #f0883e;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+  h1 { font-size: 2.1rem; line-height: 1.2; margin: 0 0 8px; }
+  h2 { font-size: 1.5rem; margin: 56px 0 12px; padding-top: 16px; border-top: 1px solid var(--line); }
+  h3 { font-size: 1.1rem; margin: 28px 0 8px; color: var(--accent2); }
+  .lede { color: var(--muted); font-size: 1.15rem; margin: 0 0 8px; }
+  p { margin: 12px 0; }
+  code { font-family: var(--mono); background: #0b0f14; padding: 1px 6px; border-radius: 4px; font-size: 0.9em; color: var(--accent); }
+  pre { background: #0b0f14; border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; overflow-x: auto; font-family: var(--mono); font-size: 0.84rem; line-height: 1.55; }
+  pre .c { color: #6b7d8f; } pre .k { color: #ff7b72; } pre .s { color: #a5d6ff; } pre .n { color: #79c0ff; } pre .f { color: var(--accent); }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; margin: 20px 0; }
+  .callout { border-left: 3px solid var(--accent); background: #18202b; padding: 14px 18px; border-radius: 0 10px 10px 0; margin: 20px 0; }
+  .callout.key { border-left-color: var(--good); }
+  .callout b { color: var(--accent); } .callout.key b { color: var(--good); }
+  .muted { color: var(--muted); }
+  .steps { counter-reset: step; list-style: none; padding: 0; margin: 0; }
+  .steps > li { counter-increment: step; position: relative; padding: 0 0 0 46px; margin: 22px 0; }
+  .steps > li::before { content: counter(step); position: absolute; left: 0; top: -2px; width: 30px; height: 30px; background: var(--accent); color: #0b0f14; font-weight: 700; border-radius: 50%; display: grid; place-items: center; }
+  .steps h3 { margin-top: 2px; color: var(--ink); }
+  figure { margin: 24px 0; text-align: center; }
+  figcaption { color: var(--muted); font-size: 0.88rem; margin-top: 8px; }
+  svg { max-width: 100%; height: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  th { color: var(--accent2); font-weight: 600; }
+  .pill { display: inline-block; font-family: var(--mono); font-size: 0.8rem; background: #0b0f14; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; color: var(--accent2); }
+  .flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; margin: 8px 0; }
+  .flow .box { background: #0b0f14; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-family: var(--mono); font-size: 0.8rem; }
+  .flow .arrow { color: var(--accent); font-size: 1.2rem; }
+  .footer { margin-top: 64px; color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); padding-top: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Synthetic Semaphore Data</h1>
+  <p class="lede">How we generate unlimited fake training clips - and why it lets us bootstrap a model before collecting much real data.</p>
+
+  <div class="callout">
+    <b>The one-sentence version.</b> We never record fake video. We compute stick-figure joint coordinates directly from known arm angles, animate between them, then rough them up with realistic noise - producing data in the exact same format MediaPipe gives us from your real camera.
+  </div>
+
+  <h2>1. Why bother with synthetic data?</h2>
+  <p>The model needs to learn two different things:</p>
+  <ul>
+    <li><b>The temporal machinery</b> - how a <i>stream</i> of body poses turns into letters over time. This is generic; it does not depend on your personal style.</li>
+    <li><b>Your specific vocabulary</b> - what <i>your</i> particular small, cursive gestures mean. This only your real clips can teach.</li>
+  </ul>
+  <p>Collecting thousands of real clips is slow and tiring. So we pretrain the temporal machinery on cheap, unlimited synthetic data, then fine-tune on your real clips. The synthetic data is a <b>structured stand-in</b>, not perfect semaphore - its job is to give the network a head start, not to be the final truth.</p>
+
+  <div class="flow">
+    <span class="box">synthetic (unlimited)</span><span class="arrow">-&gt;</span>
+    <span class="box">pretrain temporal model</span><span class="arrow">-&gt;</span>
+    <span class="box">fine-tune on YOUR clips</span><span class="arrow">-&gt;</span>
+    <span class="box">recognize your semaphore</span>
+  </div>
+
+  <h2>2. The coordinate system</h2>
+  <p>Everything lives in MediaPipe's image space: <code>x</code> and <code>y</code> run from <code>0</code> to <code>1</code> across the frame, and - importantly - <code>y</code> increases <b>downward</b> (top of frame is 0). Each frame is 33 body landmarks, each with <code>(x, y, z, visibility)</code> = 132 numbers. A clip is a stack of these frames: <span class="pill">[frames, 132]</span></p>
+
+  <p>An arm is defined by one angle, measured from straight-down (0&deg;), swinging <i>outward</i> to horizontal (90&deg;) and up (180&deg;):</p>
+
+  <figure>
+  <svg viewBox="0 0 520 280" width="520" role="img" aria-label="Arm angle convention">
+    <!-- shoulder origin -->
+    <circle cx="260" cy="70" r="5" fill="#e6edf3"/>
+    <text x="260" y="56" fill="#9fb0c0" font-size="12" text-anchor="middle" font-family="monospace">shoulder</text>
+    <!-- arc directions for right arm -->
+    <!-- 0 down -->
+    <line x1="260" y1="70" x2="260" y2="210" stroke="#2c3744" stroke-width="2"/>
+    <text x="268" y="205" fill="#9fb0c0" font-size="12" font-family="monospace">0&deg; down</text>
+    <!-- 45 -->
+    <line x1="260" y1="70" x2="359" y2="169" stroke="#2c3744" stroke-width="2"/>
+    <text x="364" y="172" fill="#9fb0c0" font-size="12" font-family="monospace">45&deg;</text>
+    <!-- 90 out -->
+    <line x1="260" y1="70" x2="400" y2="70" stroke="#5bc0eb" stroke-width="3"/>
+    <text x="406" y="74" fill="#5bc0eb" font-size="12" font-family="monospace">90&deg; out</text>
+    <!-- 135 -->
+    <line x1="260" y1="70" x2="359" y2="-29" stroke="#2c3744" stroke-width="2" transform="translate(0,0)"/>
+    <!-- 180 up -->
+    <line x1="260" y1="70" x2="260" y2="10" stroke="#2c3744" stroke-width="2"/>
+    <text x="268" y="22" fill="#9fb0c0" font-size="12" font-family="monospace">180&deg; up</text>
+    <!-- wrist marker on the 90 -->
+    <circle cx="400" cy="70" r="5" fill="#ffc857"/>
+    <text x="400" y="100" fill="#ffc857" font-size="12" text-anchor="middle" font-family="monospace">wrist</text>
+    <!-- left side mirror note -->
+    <text x="130" y="250" fill="#9fb0c0" font-size="12" text-anchor="middle" font-family="monospace">left arm mirrors:&#160; outward = left</text>
+  </svg>
+  <figcaption>The right arm sweeps right and up as the angle grows; the left arm is mirrored. <code>side = +1</code> (right) or <code>-1</code> (left).</figcaption>
+  </figure>
+
+  <p>The math is two lines - a unit direction from the angle, scaled by arm length and added to the shoulder:</p>
+<pre><span class="k">def</span> <span class="f">_arm_points</span>(shoulder, side, angle_deg, arm_len, bend=<span class="n">0.0</span>):
+    a = np.radians(angle_deg)
+    direction = np.array([side * np.sin(a), np.cos(a)])  <span class="c"># y is down</span>
+    perp = np.array([-direction[<span class="n">1</span>], direction[<span class="n">0</span>]])
+    sx = np.array(shoulder)
+    <span class="k">return</span> sx + <span class="n">0.5</span>*arm_len*direction + bend*perp,  sx + arm_len*direction
+    <span class="c">#       elbow (slightly bent)                       wrist</span></pre>
+
+  <h2>3. Building one frozen pose</h2>
+  <p>A full pose places the fixed body parts (shoulders, nose, hips) and both arms. For a <b>space</b>, the hands instead come home to the belly button - matching how you actually sign a space.</p>
+
+  <figure>
+  <svg viewBox="0 0 260 240" width="260" role="img" aria-label="Sample pose for the letter r">
+    <!-- scaled from 0..1 to 0..260 ; letter r: left arm out (90), right arm down-across (-45) -->
+    <!-- torso -->
+    <line x1="98.8" y1="104" x2="161.2" y2="104" stroke="#5bc0eb" stroke-width="3"/>
+    <line x1="98.8" y1="104" x2="104" y2="195" stroke="#3a4655" stroke-width="3"/>
+    <line x1="161.2" y1="104" x2="156" y2="195" stroke="#3a4655" stroke-width="3"/>
+    <line x1="104" y1="195" x2="156" y2="195" stroke="#3a4655" stroke-width="3"/>
+    <!-- left arm: shoulder->elbow->wrist (out to side) -->
+    <line x1="98.8" y1="104" x2="59.8" y2="104" stroke="#ffc857" stroke-width="3"/>
+    <line x1="59.8" y1="104" x2="20.8" y2="104" stroke="#ffc857" stroke-width="3"/>
+    <!-- right arm: down-across -->
+    <line x1="161.2" y1="104" x2="133.6" y2="131.6" stroke="#ffc857" stroke-width="3"/>
+    <line x1="133.6" y1="131.6" x2="106" y2="159.1" stroke="#ffc857" stroke-width="3"/>
+    <!-- head -->
+    <circle cx="130" cy="57.2" r="13" fill="none" stroke="#e6edf3" stroke-width="2"/>
+    <!-- joints -->
+    <circle cx="98.8" cy="104" r="4" fill="#fff"/><circle cx="161.2" cy="104" r="4" fill="#fff"/>
+    <circle cx="20.8" cy="104" r="5" fill="#ffc857"/><circle cx="106" cy="159.1" r="5" fill="#ffc857"/>
+    <text x="130" y="228" fill="#9fb0c0" font-size="12" text-anchor="middle" font-family="monospace">letter "r":&#160; left=90&deg;,&#160; right=-45&deg;</text>
+  </svg>
+  <figcaption>One frame is 132 numbers. Yellow = arms (the parts that carry the signal); blue = shoulders; grey = torso reference.</figcaption>
+  </figure>
+
+  <p>Each letter is just a pair of arm angles. We enumerate distinct angle pairs and assign them to A-Z:</p>
+<pre>POSITIONS = [<span class="n">-45</span>, <span class="n">0</span>, <span class="n">45</span>, <span class="n">90</span>, <span class="n">135</span>, <span class="n">180</span>]
+_PAIRS = [(l, r) <span class="k">for</span> l <span class="k">in</span> POSITIONS <span class="k">for</span> r <span class="k">in</span> POSITIONS <span class="k">if</span> <span class="k">not</span> (l==<span class="n">0</span> <span class="k">and</span> r==<span class="n">0</span>)]
+CANON = {ch: _PAIRS[i] <span class="k">for</span> i, ch <span class="k">in</span> enumerate(<span class="s">"abc...z"</span>)}   <span class="c"># (0,0) reserved for space</span></pre>
+
+  <div class="callout">
+    <b>Honesty note.</b> This angle table is a <i>structured stand-in</i>, not verified real semaphore. That is fine: it gives the network 26 clearly-different, consistent motion targets to cut its teeth on. Your real clips - and the whole point that your semaphore is personal and compact - define the true meanings during fine-tuning.
+  </div>
+
+  <h2>4. Turning poses into motion</h2>
+  <p>A word is a path through poses: <code>home -&gt; h -&gt; e -&gt; l -&gt; l -&gt; o -&gt; home</code>. We interpolate between consecutive poses to create in-between frames, using a <b>smoothstep</b> ease so the motion accelerates and decelerates like a real arm (this is the "cursive" blur you described - letters flowing into each other rather than snapping).</p>
+
+  <figure>
+  <svg viewBox="0 0 420 200" width="420" role="img" aria-label="Smoothstep easing curve">
+    <line x1="40" y1="160" x2="380" y2="160" stroke="#2c3744"/>
+    <line x1="40" y1="160" x2="40" y2="20" stroke="#2c3744"/>
+    <text x="210" y="190" fill="#9fb0c0" font-size="12" text-anchor="middle" font-family="monospace">time -&gt;</text>
+    <text x="20" y="30" fill="#9fb0c0" font-size="12" text-anchor="middle" font-family="monospace">pose</text>
+    <!-- linear reference -->
+    <line x1="40" y1="160" x2="380" y2="20" stroke="#3a4655" stroke-dasharray="4 4"/>
+    <!-- smoothstep curve: y=t*t*(3-2t), sampled -->
+    <polyline fill="none" stroke="#ffc857" stroke-width="3" points="40,160 74,156 108,143 142,121 176,96 210,90 244,84 278,59 312,37 346,24 380,20"/>
+    <text x="300" y="120" fill="#3a4655" font-size="11" font-family="monospace">linear</text>
+    <text x="120" y="150" fill="#ffc857" font-size="11" font-family="monospace">smoothstep</text>
+  </svg>
+  <figcaption>Smoothstep <code>t*t*(3-2t)</code> eases in and out, so a synthetic arm starts slow, speeds up, and settles - instead of teleporting between poses.</figcaption>
+  </figure>
+
+<pre><span class="k">for</span> k <span class="k">in</span> range(<span class="n">1</span>, move+<span class="n">1</span>):
+    t = k / move
+    t = t*t*(<span class="n">3</span> - <span class="n">2</span>*t)              <span class="c"># smoothstep easing</span>
+    frames.append((<span class="n">1</span>-t)*prev + t*cur)  <span class="c"># blend previous pose -&gt; current pose</span>
+frames.extend([cur] * hold)            <span class="c"># pause on the letter for a few frames</span></pre>
+
+  <p>The number of in-between frames (<code>move</code>) and the pause length (<code>hold</code>) are randomized per transition, so the same word is signed at different speeds every time. That is how the model learns to be robust to fast vs slow signing.</p>
+
+  <h2>5. Making it realistic (the hard part)</h2>
+  <p>Clean synthetic data is a trap: the model memorizes it in seconds and learns nothing transferable. So every clip gets roughed up. But there is a subtlety that drives <i>which</i> noise is worth adding.</p>
+
+  <div class="callout key">
+    <b>Key insight.</b> Before the model sees a clip, we <b>normalize</b> it - re-center on the mid-shoulder point and divide by shoulder width. That makes the model blind to where you stand and how big you are in frame. So augmenting global position or global zoom is <b>pointless</b> - normalization erases it. We only add noise that <i>survives</i> normalization.
+  </div>
+
+  <table>
+    <tr><th>Augmentation</th><th>What it mimics</th><th>Survives normalize?</th></tr>
+    <tr><td>Per-pose angle noise</td><td>Imprecise human signing - the same letter never lands identically</td><td class="good">yes</td></tr>
+    <tr><td>Rotation about shoulders</td><td>Camera tilt / body lean</td><td class="good">yes</td></tr>
+    <tr><td>Low-frequency drift</td><td>Natural body sway over the clip</td><td class="good">yes</td></tr>
+    <tr><td>Per-joint jitter</td><td>MediaPipe tracking noise frame to frame</td><td class="good">yes</td></tr>
+    <tr><td>Wrist occlusion (freeze)</td><td>A hand leaving frame, tracking gets stuck</td><td class="good">yes</td></tr>
+    <tr><td>Arm length / elbow bend / hip height</td><td>Different body proportions and your compact style</td><td class="good">yes</td></tr>
+    <tr><td><span class="muted">Global shift / zoom</span></td><td><span class="muted">Position and distance from camera</span></td><td class="warn">no - skipped</td></tr>
+  </table>
+
+<pre><span class="c"># rotation about the mid-shoulder (camera tilt / lean)</span>
+theta = rng.normal(<span class="n">0</span>, np.radians(<span class="n">7</span>))
+pts[:] = (pts - center) @ R.T + center
+
+<span class="c"># slow body sway, then per-frame tracking jitter</span>
+pts += np.cumsum(rng.normal(<span class="n">0</span>, <span class="n">0.0015</span>, ...), axis=<span class="n">0</span>)
+pts += rng.normal(<span class="n">0</span>, jitter, size=pts.shape)
+
+<span class="c"># ~30% of clips: a hand drops tracking and freezes for a span</span>
+<span class="k">if</span> rng.random() &lt; <span class="n">0.3</span>:
+    pts[t0:t1, hand_idx, :] = pts[t0, hand_idx, :]</pre>
+
+  <p class="muted">Measured effect: with clean synth, within-letter spread was ~0 (trivially separable). After this, within-letter spread is about 0.50 while different letters still sit ~0.87 apart - realistic difficulty instead of a memorization shortcut.</p>
+
+  <h2>6. Where this fits the whole plan</h2>
+  <ol class="steps">
+    <li><h3>Pretrain on synthetic</h3><p>Feed the infinite synthetic stream through normalize -&gt; CNN -&gt; transformer. The network learns to read motion over time. Loss now drops on a healthy curve rather than collapsing instantly.</p></li>
+    <li><h3>Fine-tune on your real clips</h3><p>Once enough real takes exist per phrase, continue training on them. This is where your <i>actual</i> compact, cursive vocabulary overrides the canonical stand-in. (Right now there are too few real clips to fine-tune - that is what collecting more unlocks.)</p></li>
+    <li><h3>Swap to a sequence head (CTC)</h3><p>Whole-clip classification cannot represent "h-e-l-l-o is a sequence of letters." A CTC head aligns a variable-length pose stream to a character sequence - the path to open-vocabulary typing and true cursive transcription.</p></li>
+  </ol>
+
+  <div class="callout">
+    <b>Why sim-to-real looks low right now, and why that is expected.</b> Your semaphore is deliberately personal and non-canonical. A model trained only on the canonical-ish synthetic stand-in <i>should not</i> nail your real signing yet - the synthetic stage only installs the temporal machinery. Real fine-tuning data is the missing ingredient, and it is exactly what you are collecting.
+  </div>
+
+  <div class="footer">
+    Generated for the semaphore project. Source: <code>synth.py</code> (generation), <code>features.py</code> (normalization), <code>model.py</code> (CNN + transformer), <code>train.py</code> (pretrain + evaluate).
+  </div>
+
+</div>
+</body>
+</html>
