@@ -8,6 +8,9 @@ semaphore from a camera.
 If a friend sent you here: thank you for helping. Setup takes a few minutes, then
 you sign the prompts shown on screen and send back one zip file.
 
+**Not technical?** See **GUIDE.md** for a plain-language, double-click walkthrough
+(no terminal needed).
+
 ## What you need
 
 - A webcam
